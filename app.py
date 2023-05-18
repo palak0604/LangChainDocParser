@@ -7,13 +7,11 @@ import streamlit as st
 
 # Import PDF document loaders...there's other ones as well!
 from langchain.document_loaders import PyPDFLoader
-# Import chroma as the vector store 
 from langchain.vectorstores import Chroma
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 
 # Set APIkey for OpenAI Service
-# Can sub this out for other LLM providers
 os.environ['OPENAI_API_KEY'] = ''
 
 # Create instance of OpenAI LLM
@@ -25,34 +23,25 @@ loader = PyPDFLoader('annualreport.pdf')
 pages = loader.load_and_split()
 # Load documents into vector database aka ChromaDB
 
-# # Supplying a persist_directory will store the embeddings on disk
-# persist_directory = 'db'
-
-# ## here we are using OpenAI embeddings but in future we will swap out to local embeddings
-# embedding = OpenAIEmbeddings()
-
-# vectordb = Chroma.from_documents(documents=pages, 
-#                                  embedding=embedding,
-#                                  persist_directory=persist_directory)
-
-# # persiste the db to disk
-# vectordb.persist()
-# vectordb = None
-
-# # Now we can load the persisted database from disk, and use it as normal. 
-# vectordb = Chroma(persist_directory=persist_directory, 
-#                   embedding_function=embedding)
-
-
-
+# Supplying a persist_directory will store the embeddings on disk
 persist_directory = 'db'
+
+## here we are using OpenAI embeddings but in future we will swap out to local embeddings
 embedding = OpenAIEmbeddings()
 
-vectordb2 = Chroma(persist_directory=persist_directory, 
-                  embedding_function=embedding,
-                   )
+vectordb = Chroma.from_documents(documents=pages, 
+                                 embedding=embedding,
+                                 persist_directory=persist_directory)
 
-retriever = vectordb2.as_retriever(search_kwargs={"k": 2})
+# persiste the db to disk
+vectordb.persist()
+vectordb = None
+
+# Now we can load the persisted database from disk, and use it as normal. 
+vectordb = Chroma(persist_directory=persist_directory, 
+                  embedding_function=embedding)
+
+retriever = vectordb.as_retriever(search_kwargs={"k": 2})
 
 # create the chain to answer questions 
 qa_chain = RetrievalQA.from_chain_type(llm=OpenAI(), 
@@ -69,13 +58,10 @@ prompt = st.text_input('Input your prompt here')
 if prompt:
     # Then pass the prompt to the LLM
     response = qa_chain(prompt)
-    #response = agent_executor.run(prompt)
     # ...and write it out to the screen
     st.write(response['result'])
 
-    # # With a streamlit expander  
-    # with st.expander('Document Similarity Search'):
-    #     # Find the relevant pages
-    #     search = store.similarity_search_with_score(prompt) 
-    #     # Write out the first 
-    #     st.write(search[0][0].page_content) 
+    ## Cite sources 
+    with st.expander('Document Similarity Search'):
+        for source in response["source_documents"]:
+            st.write(source.metadata['source'])
